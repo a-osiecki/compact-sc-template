@@ -28,7 +28,7 @@ export interface Config {
   setNetworkId: () => void;
 }
 
-export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..', '..');
 
 export class TestnetLocalConfig implements Config {
   privateStateStoreName = 'bboard-private-state';
@@ -45,9 +45,9 @@ export class TestnetLocalConfig implements Config {
 }
 
 export class StandaloneConfig implements Config {
-  privateStateStoreName = 'ballot-private-state';
+  privateStateStoreName = 'example-private-state';
   logDir = path.resolve(currentDir, '..', 'logs', 'standalone', `${new Date().toISOString()}.log`);
-  zkConfigPath = path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'ballot');
+  zkConfigPath = path.resolve(currentDir, '..', '..', 'contracts', 'src', 'managed');
   indexer = 'http://127.0.0.1:8088/api/v1/graphql';
   indexerWS = 'ws://127.0.0.1:8088/api/v1/graphql/ws';
   node = 'http://127.0.0.1:9944';

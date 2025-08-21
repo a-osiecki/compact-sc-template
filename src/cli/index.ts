@@ -405,10 +405,10 @@ export const run = async (config: Config, logger: Logger, dockerEnv?: DockerComp
     env = await dockerEnv.up();
 
     if (config instanceof StandaloneConfig) {
-      config.indexer = mapContainerPort(env, config.indexer, 'bboard-indexer');
-      config.indexerWS = mapContainerPort(env, config.indexerWS, 'bboard-indexer');
-      config.node = mapContainerPort(env, config.node, 'bboard-node');
-      config.proofServer = mapContainerPort(env, config.proofServer, 'bboard-proof-server');
+      config.indexer = mapContainerPort(env, config.indexer, 'example-indexer');
+      config.indexerWS = mapContainerPort(env, config.indexerWS, 'example-indexer');
+      config.node = mapContainerPort(env, config.node, 'example-node');
+      config.proofServer = mapContainerPort(env, config.proofServer, 'example-proof-server');
     }
   }
   const wallet = await buildWallet(config, rli, logger);
