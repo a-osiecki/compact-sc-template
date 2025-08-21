@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "file": "index.cjs",
+  "sourceRoot": "../../../../",
+  "sources": ["contracts/src/example.compact", "contracts/src/./oz-contracts/src/token/NonFungibleToken.compact", "contracts/src/./oz-contracts/src/token/../security/Initializable.compact", "compiler/standard-library.compact"],
+  "names": [],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EAqBA;;;;;;;;MAIA,AAAA,OAGC;;;;;;;;;;;;;;;;;;;;OAAA;MAED,AAAA,SAEC;;;;cAFwB,IAAa;;;;;;;;;;;;;;;;yCAAb,IAAa;;;;;;;uEAAb,IAAa;;;OAErC;;;GATA;EAFD;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;ICyBE;;;;;;;;;uDAA6C;IAC7C;;;;;;;;;uDAA+C;IAS/C;;;;;;;;;;uDAAmF;IASnF;;;;;;;;;;uDAAqF;IASrF;;;;;;;;;;uDAA2F;IAU3F;;;;;;;;;;uDAA8I;IAS9I;;;;;;;;;;uDAA2D;IClF3D;;;;;;;;;uDAAsC;IFQxC;;;;;;;;;uDAA6B;UAGzB,KAAK;IAAL;;;;;;;;;;2EAAA,KAAK;;;;sDAAA;;;;;;;GACR;EGoBD,AAAA,8CAAiC;oEAAA;;;EHlBjC,AAAA,WAGC;UAFC,KAAK;IAAL;;;;;;;;;;2EAAA,KAAK;;;;sDAAA;;GAEN;EAED,AAAA,aAEC,4BAFwB,IAAa;;;;oCACuC,IAAE;GAC9E;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;IAbD;qCAAA;;;;;;;;;;;wFAA6B;KAAA;;;;;;;;;;;;;;;;"
+}
