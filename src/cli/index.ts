@@ -23,9 +23,9 @@
 
 // Wallet seed: 8dd96c613b92a1ced03ac5e71a039d4447cfe84928864fc38260b28cd30378c2
 
-import { createInterface, type Interface } from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
-import { WebSocket } from 'ws';
+import { createInterface, type Interface } from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
+import { WebSocket } from "ws";
 // import { webcrypto } from 'crypto';
 import {
   type ContractProviders,
@@ -35,30 +35,47 @@ import {
   type DeployedContractContract,
   type PrivateStateId,
   contractPrivateStateKey,
-} from '../api/index.js';
-import { ledger, type Ledger } from '../contracts/src/managed/contract/index.cjs';
+} from "../api/index.js";
+import {
+  ledger,
+  type Ledger,
+} from "../contracts/src/managed/contract/index.cjs";
 import {
   type BalancedTransaction,
   createBalancedTx,
   type MidnightProvider,
   type UnbalancedTransaction,
   type WalletProvider,
-} from '@midnight-ntwrk/midnight-js-types';
-import { type Wallet } from '@midnight-ntwrk/wallet-api';
-import * as Rx from 'rxjs';
-import { type CoinInfo, nativeToken, Transaction, type TransactionId } from '@midnight-ntwrk/ledger';
-import { Transaction as ZswapTransaction } from '@midnight-ntwrk/zswap';
-import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
-import { type Resource, WalletBuilder } from '@midnight-ntwrk/wallet';
-import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
-import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
-import { type Logger } from 'pino';
-import { type Config, StandaloneConfig } from './config.js';
-import type { StartedDockerComposeEnvironment, DockerComposeEnvironment } from 'testcontainers';
-import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
-import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
-import { toHex, assertIsContractAddress } from '@midnight-ntwrk/midnight-js-utils';
-import { getLedgerNetworkId, getZswapNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+} from "@midnight-ntwrk/midnight-js-types";
+import { type Wallet } from "@midnight-ntwrk/wallet-api";
+import * as Rx from "rxjs";
+import {
+  type CoinInfo,
+  nativeToken,
+  Transaction,
+  type TransactionId,
+} from "@midnight-ntwrk/ledger";
+import { Transaction as ZswapTransaction } from "@midnight-ntwrk/zswap";
+import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
+import { type Resource, WalletBuilder } from "@midnight-ntwrk/wallet";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { type Logger } from "pino";
+import { type Config, StandaloneConfig } from "./config.js";
+import type {
+  StartedDockerComposeEnvironment,
+  DockerComposeEnvironment,
+} from "testcontainers";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import { type ContractAddress } from "@midnight-ntwrk/compact-runtime";
+import {
+  toHex,
+  assertIsContractAddress,
+} from "@midnight-ntwrk/midnight-js-utils";
+import {
+  getLedgerNetworkId,
+  getZswapNetworkId,
+} from "@midnight-ntwrk/midnight-js-network-id";
 
 // @ts-expect-error: It's needed to enable WebSocket usage through apollo
 globalThis.WebSocket = WebSocket;
@@ -74,10 +91,11 @@ globalThis.WebSocket = WebSocket;
 
 export const getContractLedgerState = async (
   providers: ContractProviders,
-  contractAddress: ContractAddress,
+  contractAddress: ContractAddress
 ): Promise<Ledger | null> => {
   assertIsContractAddress(contractAddress);
-  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  const contractState =
+    await providers.publicDataProvider.queryContractState(contractAddress);
   return contractState != null ? ledger(contractState.data) : null;
 };
 // providers.publicDataProvider
@@ -97,22 +115,34 @@ const DEPLOY_OR_JOIN_QUESTION = `
       3. Exit
     Which would you like to do? `;
 
-const deployOrJoin = async (providers: ContractProviders, rli: Interface, logger: Logger): Promise<ContractAPI | null> => {
+const deployOrJoin = async (
+  providers: ContractProviders,
+  rli: Interface,
+  logger: Logger
+): Promise<ContractAPI | null> => {
   let api: ContractAPI | null = null;
 
   while (true) {
     const choice = await rli.question(DEPLOY_OR_JOIN_QUESTION);
     switch (choice) {
-      case '1':
+      case "1":
         api = await ContractAPI.deploy(providers, logger);
-        logger.info(`Deployed contract at address: ${api.deployedContractAddress}`);
+        logger.info(
+          `Deployed contract at address: ${api.deployedContractAddress}`
+        );
         return api;
-      case '2':
-        api = await ContractAPI.join(providers, await rli.question('What is the contract address (in hex)? '), logger);
-        logger.info(`Joined contract at address: ${api.deployedContractAddress}`);
+      case "2":
+        api = await ContractAPI.join(
+          providers,
+          await rli.question("What is the contract address (in hex)? "),
+          logger
+        );
+        logger.info(
+          `Joined contract at address: ${api.deployedContractAddress}`
+        );
         return api;
-      case '3':
-        logger.info('Exiting...');
+      case "3":
+        logger.info("Exiting...");
         return null;
       default:
         logger.error(`Invalid choice: ${choice}`);
@@ -145,8 +175,13 @@ const displayLedgerState = async (
  * displayPrivateState: shows the hex-formatted value of the secret key.
  */
 
-const displayPrivateState = async (providers: ContractProviders, logger: Logger): Promise<void> => {
-  const privateState = await providers.privateStateProvider.get(contractPrivateStateKey);
+const displayPrivateState = async (
+  providers: ContractProviders,
+  logger: Logger
+): Promise<void> => {
+  const privateState = await providers.privateStateProvider.get(
+    contractPrivateStateKey
+  );
   if (privateState === null) {
     logger.info(`There is no existing bulletin board private state`);
   } else {
@@ -180,18 +215,19 @@ const displayDerivedState = (
 
 const MAIN_LOOP_QUESTION = `
 You can do one of the following:
-  1. Vote
+  1. Buy NFT
   2. Display the current ledger state (known by everyone)
   3. Display the current private state (known only to this DApp instance)
   4. Display the derived state (known by everyone)
   5. Exit
+  6. Show Wallet balance
 Which would you like to do? `;
-
 
 const mainLoop = async (
   providers: ContractProviders,
   rli: Interface,
-  logger: Logger
+  logger: Logger,
+  wallet: Wallet
 ): Promise<void> => {
   const contractApi = await deployOrJoin(providers, rli, logger);
   if (contractApi === null) {
@@ -211,7 +247,9 @@ const mainLoop = async (
           try {
             await contractApi.doStuff();
           } catch (e) {
-            logger.error(`Failed to vote for ${candidate}: ${e instanceof Error ? e.message : e}`);
+            logger.error(
+              `Failed to vote for ${candidate}: ${e instanceof Error ? e.message : e}`
+            );
           }
           break;
         }
@@ -231,6 +269,8 @@ const mainLoop = async (
         case "5":
           logger.info("Exiting...");
           return;
+        case "6":
+          await displayComprehensiveWalletState(wallet, logger);
         default:
           logger.error(`Invalid choice: ${choice}`);
       }
@@ -248,19 +288,32 @@ const mainLoop = async (
  * interfaces, both implemented in terms of the given wallet.
  */
 
-const createWalletAndMidnightProvider = async (wallet: Wallet): Promise<WalletProvider & MidnightProvider> => {
+const createWalletAndMidnightProvider = async (
+  wallet: Wallet
+): Promise<WalletProvider & MidnightProvider> => {
   const state = await Rx.firstValueFrom(wallet.state());
   return {
     coinPublicKey: state.coinPublicKey,
     encryptionPublicKey: state.encryptionPublicKey,
-    balanceTx(tx: UnbalancedTransaction, newCoins: CoinInfo[]): Promise<BalancedTransaction> {
+    balanceTx(
+      tx: UnbalancedTransaction,
+      newCoins: CoinInfo[]
+    ): Promise<BalancedTransaction> {
       return wallet
         .balanceTransaction(
-          ZswapTransaction.deserialize(tx.serialize(getLedgerNetworkId()), getZswapNetworkId()),
-          newCoins,
+          ZswapTransaction.deserialize(
+            tx.serialize(getLedgerNetworkId()),
+            getZswapNetworkId()
+          ),
+          newCoins
         )
         .then((tx) => wallet.proveTransaction(tx))
-        .then((zswapTx) => Transaction.deserialize(zswapTx.serialize(getZswapNetworkId()), getLedgerNetworkId()))
+        .then((zswapTx) =>
+          Transaction.deserialize(
+            zswapTx.serialize(getZswapNetworkId()),
+            getLedgerNetworkId()
+          )
+        )
         .then(createBalancedTx);
     },
     submitTx(tx: BalancedTransaction): Promise<TransactionId> {
@@ -284,18 +337,25 @@ const waitForFunds = (wallet: Wallet, logger: Logger) =>
       Rx.throttleTime(10_000),
       Rx.tap((state) => {
         const scanned = state.syncProgress?.synced ?? 0n;
-        const behind = state.syncProgress?.lag.applyGap.toString() ?? 'unknown number';
+        const behind =
+          state.syncProgress?.lag.applyGap.toString() ?? "unknown number";
         logger.info(`Wallet processed ${scanned} indices, remaining ${behind}`);
       }),
       Rx.filter((state) => {
         // Let's allow progress only if wallet is close enough
-        const synced = typeof state.syncProgress?.synced === 'bigint' ? state.syncProgress.synced : 0n;
-        const total = typeof state.syncProgress?.lag?.applyGap === 'bigint' ? state.syncProgress.lag.applyGap : 1_000n;
+        const synced =
+          typeof state.syncProgress?.synced === "bigint"
+            ? state.syncProgress.synced
+            : 0n;
+        const total =
+          typeof state.syncProgress?.lag?.applyGap === "bigint"
+            ? state.syncProgress.lag.applyGap
+            : 1_000n;
         return total - synced < 100n;
       }),
       Rx.map((s) => s.balances[nativeToken()] ?? 0n),
-      Rx.filter((balance) => balance > 0n),
-    ),
+      Rx.filter((balance) => balance > 0n)
+    )
   );
 
 /* **********************************************************************
@@ -308,7 +368,7 @@ const waitForFunds = (wallet: Wallet, logger: Logger) =>
 const buildWalletAndWaitForFunds = async (
   { indexer, indexerWS, node, proofServer }: Config,
   logger: Logger,
-  seed: string,
+  seed: string
 ): Promise<Wallet & Resource> => {
   const wallet = await WalletBuilder.buildFromSeed(
     indexer,
@@ -317,7 +377,7 @@ const buildWalletAndWaitForFunds = async (
     node,
     seed,
     getZswapNetworkId(),
-    'warn',
+    "warn"
   );
   wallet.start();
   const state = await Rx.firstValueFrom(wallet.state());
@@ -334,12 +394,23 @@ const buildWalletAndWaitForFunds = async (
 };
 
 // Generate a random see and create the wallet with that.
-const buildFreshWallet = async (config: Config, logger: Logger): Promise<Wallet & Resource> =>
-  await buildWalletAndWaitForFunds(config, logger, toHex(utils.randomBytes(32)));
+const buildFreshWallet = async (
+  config: Config,
+  logger: Logger
+): Promise<Wallet & Resource> =>
+  await buildWalletAndWaitForFunds(
+    config,
+    logger,
+    toHex(utils.randomBytes(32))
+  );
 
 // Prompt for a seed and create the wallet with that.
-const buildWalletFromSeed = async (config: Config, rli: Interface, logger: Logger): Promise<Wallet & Resource> => {
-  const seed = await rli.question('Enter your wallet seed: ');
+const buildWalletFromSeed = async (
+  config: Config,
+  rli: Interface,
+  logger: Logger
+): Promise<Wallet & Resource> => {
+  const seed = await rli.question("Enter your wallet seed: ");
   return await buildWalletAndWaitForFunds(config, logger, seed);
 };
 
@@ -347,7 +418,8 @@ const buildWalletFromSeed = async (config: Config, rli: Interface, logger: Logge
  * This seed gives access to tokens minted in the genesis block of a local development node - only
  * used in standalone networks to build a wallet with initial funds.
  */
-const GENESIS_MINT_WALLET_SEED = '0000000000000000000000000000000000000000000000000000000000000001';
+const GENESIS_MINT_WALLET_SEED =
+  "0000000000000000000000000000000000000000000000000000000000000001";
 
 /* **********************************************************************
  * buildWallet: unless running in a standalone (offline) mode,
@@ -362,19 +434,27 @@ You can do one of the following:
   3. Exit
 Which would you like to do? `;
 
-const buildWallet = async (config: Config, rli: Interface, logger: Logger): Promise<(Wallet & Resource) | null> => {
+const buildWallet = async (
+  config: Config,
+  rli: Interface,
+  logger: Logger
+): Promise<(Wallet & Resource) | null> => {
   if (config instanceof StandaloneConfig) {
-    return await buildWalletAndWaitForFunds(config, logger, GENESIS_MINT_WALLET_SEED);
+    return await buildWalletAndWaitForFunds(
+      config,
+      logger,
+      GENESIS_MINT_WALLET_SEED
+    );
   }
   while (true) {
     const choice = await rli.question(WALLET_LOOP_QUESTION);
     switch (choice) {
-      case '1':
+      case "1":
         return await buildFreshWallet(config, logger);
-      case '2':
+      case "2":
         return await buildWalletFromSeed(config, rli, logger);
-      case '3':
-        logger.info('Exiting...');
+      case "3":
+        logger.info("Exiting...");
         return null;
       default:
         logger.error(`Invalid choice: ${choice}`);
@@ -382,13 +462,17 @@ const buildWallet = async (config: Config, rli: Interface, logger: Logger): Prom
   }
 };
 
-const mapContainerPort = (env: StartedDockerComposeEnvironment, url: string, containerName: string) => {
+const mapContainerPort = (
+  env: StartedDockerComposeEnvironment,
+  url: string,
+  containerName: string
+) => {
   const mappedUrl = new URL(url);
   const container = env.getContainer(containerName);
 
   mappedUrl.port = String(container.getFirstMappedPort());
 
-  return mappedUrl.toString().replace(/\/+$/, '');
+  return mappedUrl.toString().replace(/\/+$/, "");
 };
 
 /* **********************************************************************
@@ -398,38 +482,56 @@ const mapContainerPort = (env: StartedDockerComposeEnvironment, url: string, con
  * will wait for Docker to be ready before doing anything else.
  */
 
-export const run = async (config: Config, logger: Logger, dockerEnv?: DockerComposeEnvironment): Promise<void> => {
+export const run = async (
+  config: Config,
+  logger: Logger,
+  dockerEnv?: DockerComposeEnvironment
+): Promise<void> => {
   const rli = createInterface({ input, output, terminal: true });
   let env;
   if (dockerEnv !== undefined) {
     env = await dockerEnv.up();
 
     if (config instanceof StandaloneConfig) {
-      config.indexer = mapContainerPort(env, config.indexer, 'example-indexer');
-      config.indexerWS = mapContainerPort(env, config.indexerWS, 'example-indexer');
-      config.node = mapContainerPort(env, config.node, 'example-node');
-      config.proofServer = mapContainerPort(env, config.proofServer, 'example-proof-server');
+      config.indexer = mapContainerPort(env, config.indexer, "example-indexer");
+      config.indexerWS = mapContainerPort(
+        env,
+        config.indexerWS,
+        "example-indexer"
+      );
+      config.node = mapContainerPort(env, config.node, "example-node");
+      config.proofServer = mapContainerPort(
+        env,
+        config.proofServer,
+        "example-proof-server"
+      );
     }
   }
   const wallet = await buildWallet(config, rli, logger);
   try {
     if (wallet !== null) {
-      const walletAndMidnightProvider = await createWalletAndMidnightProvider(wallet);
+      const walletAndMidnightProvider =
+        await createWalletAndMidnightProvider(wallet);
       const providers = {
         privateStateProvider: levelPrivateStateProvider<PrivateStateId>({
           privateStateStoreName: config.privateStateStoreName,
         }),
-        publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
-        zkConfigProvider: new NodeZkConfigProvider<'doStuff'>(config.zkConfigPath),
+        publicDataProvider: indexerPublicDataProvider(
+          config.indexer,
+          config.indexerWS
+        ),
+        zkConfigProvider: new NodeZkConfigProvider<"doStuff">(
+          config.zkConfigPath
+        ),
         proofProvider: httpClientProofProvider(config.proofServer),
         walletProvider: walletAndMidnightProvider,
         midnightProvider: walletAndMidnightProvider,
       };
-      await mainLoop(providers, rli, logger);
+      await mainLoop(providers, rli, logger, wallet);
     }
   } catch (e) {
     logError(logger, e);
-    logger.info('Exiting...');
+    logger.info("Exiting...");
   } finally {
     try {
       rli.close();
@@ -447,7 +549,7 @@ export const run = async (config: Config, logger: Logger, dockerEnv?: DockerComp
         try {
           if (env !== undefined) {
             await env.down();
-            logger.info('Goodbye');
+            logger.info("Goodbye");
             process.exit(0);
           }
         } catch (e) {
@@ -465,4 +567,35 @@ function logError(logger: Logger, e: unknown) {
   } else {
     logger.error(`Found error (unknown type)`);
   }
+}
+
+// Function to display comprehensive wallet state including all token types
+async function displayComprehensiveWalletState(
+  wallet: Wallet,
+  logger: Logger
+): Promise<void> {
+  const state = await Rx.firstValueFrom(wallet.state());
+
+  logger.info("=== WALLET STATE ===");
+  logger.info(`Address: ${state.address}`);
+  logger.info(
+    `Sync Status: ${state.syncProgress?.synced ? "SYNCED" : "SYNCING"}`
+  );
+
+  if (state.syncProgress) {
+    logger.info(`Apply Gap: ${state.syncProgress.lag.applyGap}`);
+    logger.info(`Source Gap: ${state.syncProgress.lag.sourceGap}`);
+  }
+
+  logger.info("=== TOKEN BALANCES ===");
+  Object.entries(state.balances).forEach(([tokenType, balance]) => {
+    if (tokenType === nativeToken()) {
+      logger.info(`Native Token (tDUST): ${balance}`);
+    } else {
+      logger.info(`Token ${tokenType}: ${balance}`);
+    }
+  });
+
+  logger.info(`Transaction History Count: ${state.transactionHistory.length}`);
+  logger.info("===================");
 }

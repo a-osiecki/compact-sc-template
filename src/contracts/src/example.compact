@@ -15,16 +15,36 @@
 pragma language_version >= 0.16;
 import CompactStandardLibrary;
 import "./oz-contracts/src/token/NonFungibleToken" prefix NFT_;
+export { CoinInfo, QualifiedCoinInfo, ZswapCoinPublicKey };
 
 witness secret_key(): Bytes<32>;
-export ledger count: Counter;
 
-constructor() {
-    count.increment(1);
+export ledger name: Opaque<"string">;
+export ledger symbol: Opaque<"string">;
+export ledger owners: Map<Uint<128>, Either<ZswapCoinPublicKey, ContractAddress>>;
+export ledger balances: Map<Either<ZswapCoinPublicKey, ContractAddress>, Uint<128>>;
+export sealed ledger price: Uint<128>;
+export ledger nonce: Counter;
+export ledger treasury: Map<Bytes<32>, QualifiedCoinInfo>;
+
+constructor(_name: Opaque<"string">, _symbol: Opaque<"string">, _price: Uint<128>) {
+  NFT_initialize(disclose(_name), disclose(_symbol));
+  price = disclose(_price);
+  name = NFT_name();
+  symbol = NFT_symbol();
 }
 
-export circuit doStuff(): [] {
-  count.increment(1);
+export circuit doStuff(coin: CoinInfo): [] {
+  const own = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
+  transferCoinFromUser(coin);
+  NFT__mint(
+    own,
+    nonce
+  );
+
+  addToOwners(nonce, own);
+  addToBalance(own);
+  nonce.increment(1);
   return;
 }
 
@@ -32,6 +52,58 @@ export circuit publicKey(sk: Bytes<32>): Bytes<32> {
   return persistentHash<Vector<2, Bytes<32>>>([pad(32, "commitment-domain"), sk]);
 }
 
-circuit nullifier(sk: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "nullifier-domain"), sk]);
+circuit addToBalance(
+  owner: Either<ZswapCoinPublicKey, ContractAddress>,
+): [] {
+  if (balances.member(owner)) {
+    const oldBalance = balances.lookup(owner);
+    balances.insert(
+      owner,
+      oldBalance + 1 as Uint<128>
+    );
+  } else {
+    balances.insert(
+      owner,
+      1 as Uint<128>
+    );
+  }
+  return;
+}
+
+circuit addToOwners(
+  tokenId: Uint<128>,
+  owner: Either<ZswapCoinPublicKey, ContractAddress>,
+): [] {
+  if (owners.member(tokenId)) {
+    assert(false, "Token already minted");
+  }
+  owners.insert(
+    tokenId,
+    owner
+  );
+  return;
+}
+
+circuit transferCoinFromUser(coin: CoinInfo): [] {
+  const disclosedCoin = disclose(coin);
+  assert(disclosedCoin.value >= price, "Insufficient coin value");
+  const coinExists = treasury.member(disclosedCoin.color);
+  const coinToInsert = coinExists ?
+    mergeCoinImmediate(treasury.lookup(disclosedCoin.color), disclosedCoin) :
+    disclosedCoin;
+  // assert(coinExists, "just checking if this is reachable");
+  // assert(coinToInsert.value != null, "Coin value cannot be null");
+  // assert(coinToInsert.color != null, "Coin color cannot be null");
+  // assert(coinToInsert.nonce != null, "Coin nonce cannot be null");
+
+
+  treasury.insertCoin(
+    disclosedCoin.color,
+    CoinInfo {
+      color: coinToInsert.color,
+      value: coinToInsert.value,
+      nonce: coinToInsert.nonce,
+    },
+    right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  );
 }

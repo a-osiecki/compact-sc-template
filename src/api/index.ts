@@ -20,11 +20,13 @@
  */
 
 import contractModule from "../contracts/src/managed/contract/index.cjs";
+import { CoinInfo, QualifiedCoinInfo } from "../contracts/src/managed/contract/index.d.cjs";
 const { Contract, ledger, pureCircuits } = contractModule;
 
 import {
   type ContractAddress,
   convert_bigint_to_Uint8Array,
+  encodeTokenType,
 } from "@midnight-ntwrk/compact-runtime";
 import { type Logger } from "pino";
 import {
@@ -33,6 +35,7 @@ import {
   type ContractProviders,
   type DeployedContractContract,
   contractPrivateStateKey,
+  parseTreasury,
 } from "./common-types.js";
 // import { Contract, ledger, pureCircuits, STATE } from '../../contract/src/managed/bboard/contract/index.cjs';
 import {
@@ -47,6 +50,7 @@ import {
 import { combineLatest, map, tap, from, type Observable } from "rxjs";
 import { fromHex, toHex } from "@midnight-ntwrk/midnight-js-utils";
 import * as utils from "./utils.js";
+import { nativeToken } from "@midnight-ntwrk/ledger";
 
 const secretKeyAgus =
   // "60c92896f96e18f8db21f69b6a5ef83641798ddda952087825f42e814ebb1f47";
@@ -90,6 +94,17 @@ export interface DeployedContractAPI {
  */
 // TODO: Update BBoardAPI to use contract level private state storage.
 export class ContractAPI implements DeployedContractAPI {
+  /**
+   * Gets the address of the current deployed contract.
+   */
+  readonly deployedContractAddress: ContractAddress;
+
+  /**
+   * Gets an observable stream of state changes based on the current public (ledger),
+   * and private state data.
+   */
+  readonly state$: Observable<ContractDerivedState>;
+
   /** @internal */
   private constructor(
     public readonly deployedContract: DeployedContractContract,
@@ -111,7 +126,7 @@ export class ContractAPI implements DeployedContractAPI {
               logger?.trace({
                 ledgerStateChanged: {
                   ledgerState: {
-                    count: ledgerState.count,
+                    ...ledgerState,
                   },
                 },
               })
@@ -129,23 +144,41 @@ export class ContractAPI implements DeployedContractAPI {
       ],
       // ...and combine them to produce the required derived state.
       (ledgerState, privateState) => {
+        let owners: Map<bigint, string> = new Map<bigint, string>();
+        let balances: Map<string, bigint> = new Map<string, bigint>();
+        for (const [k, v] of ledgerState.owners) {
+          if (v.is_left) {
+            owners.set(k, toHex(v.left.bytes));
+          } else {
+            owners.set(k, toHex(v.right.bytes));
+          }
+        }
+        for (const [k, v] of ledgerState.balances) {
+          if (k.is_left) {
+            balances.set(toHex(k.left.bytes), v);
+          } else {
+            balances.set(toHex(k.right.bytes), v);
+          }
+        }
         return {
-          count: Number(ledgerState.count),
+          name: ledgerState.name,
+          symbol: ledgerState.symbol,
+          owners: owners,
+          balances: balances,
+          price: ledgerState.price,
+          treasury: parseTreasury(ledgerState.treasury),
         };
       }
     );
   }
 
-  /**
-   * Gets the address of the current deployed contract.
-   */
-  readonly deployedContractAddress: ContractAddress;
-
-  /**
-   * Gets an observable stream of state changes based on the current public (ledger),
-   * and private state data.
-   */
-  readonly state$: Observable<ContractDerivedState>;
+  coin(amount: number): CoinInfo {
+    return {
+      color: encodeTokenType(nativeToken()),
+      nonce: utils.randomBytes(32),
+      value: BigInt(amount),
+    };
+  }
 
   /**
    * Attempts to post a given message to the bulletin board.
@@ -158,7 +191,9 @@ export class ContractAPI implements DeployedContractAPI {
   async doStuff(): Promise<void> {
     this.logger?.info(`doing stuff...`);
 
-    const txData = await this.deployedContract.callTx.doStuff();
+    const coin = this.coin(1000);
+    console.dir({nonce: toHex(coin.nonce), color: toHex(coin.color), value: coin.value});
+    const txData = await this.deployedContract.callTx.doStuff(coin);
 
     this.logger?.trace({
       transactionAdded: {
@@ -188,6 +223,7 @@ export class ContractAPI implements DeployedContractAPI {
       privateStateId: contractPrivateStateKey,
       contract: contractContractInstance,
       initialPrivateState: await ContractAPI.getPrivateState(providers),
+      args: ["fisura", "token", 1000n],
     });
 
     logger?.trace({
