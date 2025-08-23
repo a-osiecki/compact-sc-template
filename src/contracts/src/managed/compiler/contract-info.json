@@ -33,6 +33,13 @@
               }
             ]
           }
+        },
+        {
+          "name": "domain_sep",
+          "type": {
+            "type-name": "Bytes",
+            "length": 32
+          }
         }
       ],
       "result-type": {

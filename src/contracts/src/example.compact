@@ -34,9 +34,9 @@ constructor(_name: Opaque<"string">, _symbol: Opaque<"string">, _price: Uint<128
   symbol = NFT_symbol();
 }
 
-export circuit doStuff(coin: CoinInfo): [] {
+export circuit doStuff(coin: CoinInfo, domain_sep: Bytes<32>): [] {
   const own = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
-  transferCoinFromUser(coin);
+  // transferCoinFromUser(coin);
   NFT__mint(
     own,
     nonce
@@ -45,6 +45,8 @@ export circuit doStuff(coin: CoinInfo): [] {
   addToOwners(nonce, own);
   addToBalance(own);
   nonce.increment(1);
+
+  mintToken(disclose(domain_sep), 1 as Uint<64>, disclose(domain_sep), own);
   return;
 }
 
@@ -87,14 +89,11 @@ circuit addToOwners(
 circuit transferCoinFromUser(coin: CoinInfo): [] {
   const disclosedCoin = disclose(coin);
   assert(disclosedCoin.value >= price, "Insufficient coin value");
+  receive(disclosedCoin);
   const coinExists = treasury.member(disclosedCoin.color);
   const coinToInsert = coinExists ?
     mergeCoinImmediate(treasury.lookup(disclosedCoin.color), disclosedCoin) :
     disclosedCoin;
-  // assert(coinExists, "just checking if this is reachable");
-  // assert(coinToInsert.value != null, "Coin value cannot be null");
-  // assert(coinToInsert.color != null, "Coin color cannot be null");
-  // assert(coinToInsert.nonce != null, "Coin nonce cannot be null");
 
 
   treasury.insertCoin(

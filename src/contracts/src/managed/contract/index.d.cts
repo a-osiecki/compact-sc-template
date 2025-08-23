@@ -14,7 +14,9 @@ export type Witnesses<T> = {
 }
 
 export type ImpureCircuits<T> = {
-  doStuff(context: __compactRuntime.CircuitContext<T>, coin_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
+  doStuff(context: __compactRuntime.CircuitContext<T>,
+          coin_0: CoinInfo,
+          domain_sep_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
 }
 
 export type PureCircuits = {
@@ -22,7 +24,9 @@ export type PureCircuits = {
 }
 
 export type Circuits<T> = {
-  doStuff(context: __compactRuntime.CircuitContext<T>, coin_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
+  doStuff(context: __compactRuntime.CircuitContext<T>,
+          coin_0: CoinInfo,
+          domain_sep_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
   publicKey(context: __compactRuntime.CircuitContext<T>, sk_0: Uint8Array): __compactRuntime.CircuitResults<T, Uint8Array>;
 }
 

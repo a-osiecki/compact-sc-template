@@ -118,7 +118,8 @@ const DEPLOY_OR_JOIN_QUESTION = `
 const deployOrJoin = async (
   providers: ContractProviders,
   rli: Interface,
-  logger: Logger
+  logger: Logger,
+  contractInstance: string
 ): Promise<ContractAPI | null> => {
   let api: ContractAPI | null = null;
 
@@ -134,7 +135,7 @@ const deployOrJoin = async (
       case "2":
         api = await ContractAPI.join(
           providers,
-          await rli.question("What is the contract address (in hex)? "),
+          contractInstance, //await rli.question("What is the contract address (in hex)? "),
           logger
         );
         logger.info(
@@ -221,15 +222,18 @@ You can do one of the following:
   4. Display the derived state (known by everyone)
   5. Exit
   6. Show Wallet balance
+  7. send nft
 Which would you like to do? `;
 
 const mainLoop = async (
   providers: ContractProviders,
   rli: Interface,
   logger: Logger,
-  wallet: Wallet
+  wallet: Wallet,
+  contractInstance: string
 ): Promise<void> => {
-  const contractApi = await deployOrJoin(providers, rli, logger);
+  const contractApi = await deployOrJoin(providers, rli, logger, contractInstance);
+  const testnet_addr = "mn_shield-addr_test1chhe5tpv9ugmgg2kl523qrp965gkafqm3cc8d9tvtkrw0jced93sxqx7npgcz9xhna2futff2hq8d8afujw8qzenmxqtpkwgxn93yheg7v8xh6kr";
   if (contractApi === null) {
     return;
   }
@@ -271,6 +275,25 @@ const mainLoop = async (
           return;
         case "6":
           await displayComprehensiveWalletState(wallet, logger);
+          break;
+        case "7":
+
+          const state = await Rx.firstValueFrom(wallet.state());
+          console.log("STATE", state.balances);
+
+          const tokenType = Object.entries(state.balances)[1][0];
+          const recipe = await wallet.transferTransaction([{
+            amount: 1n,
+            type: tokenType, //nativeToken(),
+            receiverAddress: testnet_addr
+          }])
+
+          // const recipe2 = await wallet.balanceTransaction(recipe, []);
+          let zswapTx = await wallet.proveTransaction(recipe);
+          // console.log("BTX", bTx.BalancedTransaction.toString());
+          await wallet.submitTransaction(zswapTx);
+          console.log("OKKKKK")
+          break;
         default:
           logger.error(`Invalid choice: ${choice}`);
       }
@@ -408,10 +431,11 @@ const buildFreshWallet = async (
 const buildWalletFromSeed = async (
   config: Config,
   rli: Interface,
-  logger: Logger
+  logger: Logger,
+  seedd: string
 ): Promise<Wallet & Resource> => {
-  const seed = await rli.question("Enter your wallet seed: ");
-  return await buildWalletAndWaitForFunds(config, logger, seed);
+  // const seed = await rli.question("Enter your wallet seed: ");
+  return await buildWalletAndWaitForFunds(config, logger, seedd);
 };
 
 /* ***********************************************************************
@@ -437,7 +461,8 @@ Which would you like to do? `;
 const buildWallet = async (
   config: Config,
   rli: Interface,
-  logger: Logger
+  logger: Logger,
+  seed: string
 ): Promise<(Wallet & Resource) | null> => {
   if (config instanceof StandaloneConfig) {
     return await buildWalletAndWaitForFunds(
@@ -452,7 +477,7 @@ const buildWallet = async (
       case "1":
         return await buildFreshWallet(config, logger);
       case "2":
-        return await buildWalletFromSeed(config, rli, logger);
+        return await buildWalletFromSeed(config, rli, logger,seed);
       case "3":
         logger.info("Exiting...");
         return null;
@@ -507,7 +532,9 @@ export const run = async (
       );
     }
   }
-  const wallet = await buildWallet(config, rli, logger);
+  const seed = "55b5cb432001eec7f8cf850322c9360019c1a721f3ea1417e9d0d1ab6ddc8109";
+  const contractInstance = "0200a5006707ee48495a5d4cbe2781db594edd4890c37fd5ac7036cdc3f583a73822";
+  const wallet = await buildWallet(config, rli, logger, seed);
   try {
     if (wallet !== null) {
       const walletAndMidnightProvider =
@@ -527,7 +554,7 @@ export const run = async (
         walletProvider: walletAndMidnightProvider,
         midnightProvider: walletAndMidnightProvider,
       };
-      await mainLoop(providers, rli, logger, wallet);
+      await mainLoop(providers, rli, logger, wallet, contractInstance);
     }
   } catch (e) {
     logError(logger, e);

@@ -51,6 +51,7 @@ import { combineLatest, map, tap, from, type Observable } from "rxjs";
 import { fromHex, toHex } from "@midnight-ntwrk/midnight-js-utils";
 import * as utils from "./utils.js";
 import { nativeToken } from "@midnight-ntwrk/ledger";
+import { pad } from "./utils.js";
 
 const secretKeyAgus =
   // "60c92896f96e18f8db21f69b6a5ef83641798ddda952087825f42e814ebb1f47";
@@ -192,8 +193,9 @@ export class ContractAPI implements DeployedContractAPI {
     this.logger?.info(`doing stuff...`);
 
     const coin = this.coin(1000);
+    const dom_sep = pad("holaholaholaholaholaholaholahola", 32); //"hola" // utils.randomBytes(32);
     console.dir({nonce: toHex(coin.nonce), color: toHex(coin.color), value: coin.value});
-    const txData = await this.deployedContract.callTx.doStuff(coin);
+    const txData = await this.deployedContract.callTx.doStuff(coin, dom_sep);
 
     this.logger?.trace({
       transactionAdded: {
