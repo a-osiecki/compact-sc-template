@@ -10,60 +10,75 @@ export type QualifiedCoinInfo = { nonce: Uint8Array;
 
 export type ZswapCoinPublicKey = { bytes: Uint8Array };
 
+export type AssetPublicInfo = { kind: string; description: string };
+
+export type Offer = { nullifiedOwner: Uint8Array;
+                      shares: bigint;
+                      pricePerShare: bigint
+                    };
+
 export type Witnesses<T> = {
+  secret_key(context: __compactRuntime.WitnessContext<Ledger, T>): [T, Uint8Array];
+  salt(context: __compactRuntime.WitnessContext<Ledger, T>): [T, Uint8Array];
 }
 
 export type ImpureCircuits<T> = {
-  doStuff(context: __compactRuntime.CircuitContext<T>,
-          coin_0: CoinInfo,
-          domain_sep_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
+  mintShare(context: __compactRuntime.CircuitContext<T>,
+            amountOfShares_0: bigint,
+            coin_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
+  sellShares(context: __compactRuntime.CircuitContext<T>,
+             amountOfShares_0: bigint,
+             unitPrice_0: bigint,
+             tokens_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
+  buyShare(context: __compactRuntime.CircuitContext<T>,
+           nullifiedOwner_0: Uint8Array,
+           amountOfShares_0: bigint,
+           unitPrice_0: bigint,
+           coin_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
 }
 
 export type PureCircuits = {
   publicKey(sk_0: Uint8Array): Uint8Array;
+  nullify(sk_0: Uint8Array, salt_0: Uint8Array): Uint8Array;
 }
 
 export type Circuits<T> = {
-  doStuff(context: __compactRuntime.CircuitContext<T>,
-          coin_0: CoinInfo,
-          domain_sep_0: Uint8Array): __compactRuntime.CircuitResults<T, []>;
+  mintShare(context: __compactRuntime.CircuitContext<T>,
+            amountOfShares_0: bigint,
+            coin_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
+  sellShares(context: __compactRuntime.CircuitContext<T>,
+             amountOfShares_0: bigint,
+             unitPrice_0: bigint,
+             tokens_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
+  buyShare(context: __compactRuntime.CircuitContext<T>,
+           nullifiedOwner_0: Uint8Array,
+           amountOfShares_0: bigint,
+           unitPrice_0: bigint,
+           coin_0: CoinInfo): __compactRuntime.CircuitResults<T, []>;
   publicKey(context: __compactRuntime.CircuitContext<T>, sk_0: Uint8Array): __compactRuntime.CircuitResults<T, Uint8Array>;
+  nullify(context: __compactRuntime.CircuitContext<T>,
+          sk_0: Uint8Array,
+          salt_0: Uint8Array): __compactRuntime.CircuitResults<T, Uint8Array>;
 }
 
 export type Ledger = {
-  readonly name: string;
-  readonly symbol: string;
-  owners: {
+  readonly assetInfo: AssetPublicInfo;
+  readonly expectedCoinType: Uint8Array;
+  readonly unitPrice: bigint;
+  readonly availableShares: bigint;
+  sells: {
     isEmpty(): boolean;
     size(): bigint;
-    member(key_0: bigint): boolean;
-    lookup(key_0: bigint): { is_left: boolean,
-                             left: ZswapCoinPublicKey,
-                             right: { bytes: Uint8Array }
-                           };
-    [Symbol.iterator](): Iterator<[bigint, { is_left: boolean, left: ZswapCoinPublicKey, right: { bytes: Uint8Array } }]>
+    member(key_0: Offer): boolean;
+    lookup(key_0: Offer): QualifiedCoinInfo;
+    [Symbol.iterator](): Iterator<[Offer, QualifiedCoinInfo]>
   };
-  balances: {
+  claimables: {
     isEmpty(): boolean;
     size(): bigint;
-    member(key_0: { is_left: boolean,
-                    left: ZswapCoinPublicKey,
-                    right: { bytes: Uint8Array }
-                  }): boolean;
-    lookup(key_0: { is_left: boolean,
-                    left: ZswapCoinPublicKey,
-                    right: { bytes: Uint8Array }
-                  }): bigint;
-    [Symbol.iterator](): Iterator<[{ is_left: boolean, left: ZswapCoinPublicKey, right: { bytes: Uint8Array } }, bigint]>
-  };
-  readonly price: bigint;
-  readonly nonce: bigint;
-  treasury: {
-    isEmpty(): boolean;
-    size(): bigint;
-    member(key_0: Uint8Array): boolean;
-    lookup(key_0: Uint8Array): QualifiedCoinInfo;
-    [Symbol.iterator](): Iterator<[Uint8Array, QualifiedCoinInfo]>
+    member(key_0: Offer): boolean;
+    lookup(key_0: Offer): QualifiedCoinInfo;
+    [Symbol.iterator](): Iterator<[Offer, QualifiedCoinInfo]>
   };
 }
 
@@ -77,9 +92,12 @@ export declare class Contract<T, W extends Witnesses<T> = Witnesses<T>> {
   impureCircuits: ImpureCircuits<T>;
   constructor(witnesses: W);
   initialState(context: __compactRuntime.ConstructorContext<T>,
-               _name_1: string,
-               _symbol_1: string,
-               _price_0: bigint): __compactRuntime.ConstructorResult<T>;
+               _owner_0: ZswapCoinPublicKey,
+               _assetInfo_0: AssetPublicInfo,
+               _coinType_0: Uint8Array,
+               _unitPrice_0: bigint,
+               _availableShares_0: bigint,
+               _domain_sep_0: Uint8Array): __compactRuntime.ConstructorResult<T>;
 }
 
 export declare function ledger(state: __compactRuntime.StateValue): Ledger;

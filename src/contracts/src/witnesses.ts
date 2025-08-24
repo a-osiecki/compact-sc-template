@@ -21,32 +21,18 @@
 import { Ledger } from "./managed/contract/index.cjs";
 import { WitnessContext } from "@midnight-ntwrk/compact-runtime";
 
-
-
-/* **********************************************************************
- * The only hidden state needed by the bulletin board contract is
- * the user's secret key.  Some of the library code and
- * compiler-generated code is parameterized by the type of our
- * private state, so we define a type for it and a function to
- * make an object of that type.
- */
-
-// export type BBoardPrivateState = {
-//   readonly secretKey: Uint8Array;
-// };
-
-// export const createBBoardPrivateState = (secretKey: Uint8Array) => ({
-//   secretKey,
-// });
-
-
 export type ContractPrivateState = {
   readonly secret_key: Uint8Array;
+  readonly salt: Uint8Array;
 };
 
-export const createContractPrivateState = (secretKey: Uint8Array) => {
+export const createContractPrivateState = (
+  secretKey: Uint8Array,
+  salt: Uint8Array
+) => {
   return {
     secret_key: secretKey,
+    salt,
   };
 };
 /* **********************************************************************
@@ -92,5 +78,10 @@ export const witnesses = {
     ContractPrivateState,
     Uint8Array,
   ] => [privateState, privateState.secret_key],
+  salt: ({
+    privateState,
+  }: WitnessContext<Ledger, ContractPrivateState>): [
+    ContractPrivateState,
+    Uint8Array,
+  ] => [privateState, privateState.salt],
 };
-

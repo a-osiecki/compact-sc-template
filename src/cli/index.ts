@@ -38,12 +38,14 @@ import {
 } from "../api/index.js";
 import {
   ledger,
+  pureCircuits,
   type Ledger,
 } from "../contracts/src/managed/contract/index.cjs";
 import {
   type BalancedTransaction,
   createBalancedTx,
   type MidnightProvider,
+  PublicDataProvider,
   type UnbalancedTransaction,
   type WalletProvider,
 } from "@midnight-ntwrk/midnight-js-types";
@@ -71,6 +73,7 @@ import { type ContractAddress } from "@midnight-ntwrk/compact-runtime";
 import {
   toHex,
   assertIsContractAddress,
+  fromHex,
 } from "@midnight-ntwrk/midnight-js-utils";
 import {
   getLedgerNetworkId,
@@ -119,7 +122,7 @@ const deployOrJoin = async (
   providers: ContractProviders,
   rli: Interface,
   logger: Logger,
-  contractInstance: string
+  contractInstance?: string
 ): Promise<ContractAPI | null> => {
   let api: ContractAPI | null = null;
 
@@ -135,7 +138,8 @@ const deployOrJoin = async (
       case "2":
         api = await ContractAPI.join(
           providers,
-          contractInstance, //await rli.question("What is the contract address (in hex)? "),
+          contractInstance ??
+            (await rli.question("What is the contract address (in hex)? ")),
           logger
         );
         logger.info(
@@ -197,9 +201,11 @@ const displayPrivateState = async (
  * determine if the current user is the poster of the current message.
  */
 
-const displayDerivedState = (
+const displayDerivedState = async (
+  providers: ContractProviders,
   ledgerState: ContractDerivedState | undefined,
-  logger: Logger
+  logger: Logger,
+  contractApi: ContractAPI
 ) => {
   if (ledgerState === undefined) {
     logger.info(`No bulletin board state currently available`);
@@ -207,6 +213,10 @@ const displayDerivedState = (
     logger.info(`Current derived state:`);
     console.dir(ledgerState, { depth: null });
   }
+  const state = await providers.publicDataProvider.queryZSwapAndContractState(
+    contractApi.deployedContractAddress
+  );
+  console.dir(state?.[0].toString(), { depth: null });
 };
 /* **********************************************************************
  * mainLoop: the main interactive menu of the bulletin board CLI.
@@ -223,6 +233,8 @@ You can do one of the following:
   5. Exit
   6. Show Wallet balance
   7. send nft
+  8 . Sell Shares
+  9 . Buy Share
 Which would you like to do? `;
 
 const mainLoop = async (
@@ -230,10 +242,17 @@ const mainLoop = async (
   rli: Interface,
   logger: Logger,
   wallet: Wallet,
-  contractInstance: string
+  contractInstance?: string
 ): Promise<void> => {
-  const contractApi = await deployOrJoin(providers, rli, logger, contractInstance);
-  const testnet_addr = "mn_shield-addr_test1chhe5tpv9ugmgg2kl523qrp965gkafqm3cc8d9tvtkrw0jced93sxqx7npgcz9xhna2futff2hq8d8afujw8qzenmxqtpkwgxn93yheg7v8xh6kr";
+  const contractApi = await deployOrJoin(
+    providers,
+    rli,
+    logger,
+    contractInstance
+  );
+
+  const testnet_addr =
+    "mn_shield-addr_test1chhe5tpv9ugmgg2kl523qrp965gkafqm3cc8d9tvtkrw0jced93sxqx7npgcz9xhna2futff2hq8d8afujw8qzenmxqtpkwgxn93yheg7v8xh6kr";
   if (contractApi === null) {
     return;
   }
@@ -249,7 +268,7 @@ const mainLoop = async (
         case "1": {
           const candidate = await rli.question(`Who do you want to vote for?`);
           try {
-            await contractApi.doStuff();
+            await contractApi.mintShare();
           } catch (e) {
             logger.error(
               `Failed to vote for ${candidate}: ${e instanceof Error ? e.message : e}`
@@ -268,7 +287,7 @@ const mainLoop = async (
           await displayPrivateState(providers, logger);
           break;
         case "4":
-          displayDerivedState(currentState, logger);
+          displayDerivedState(providers, currentState, logger, contractApi);
           break;
         case "5":
           logger.info("Exiting...");
@@ -277,23 +296,34 @@ const mainLoop = async (
           await displayComprehensiveWalletState(wallet, logger);
           break;
         case "7":
-
           const state = await Rx.firstValueFrom(wallet.state());
           console.log("STATE", state.balances);
 
           const tokenType = Object.entries(state.balances)[1][0];
-          const recipe = await wallet.transferTransaction([{
-            amount: 1n,
-            type: tokenType, //nativeToken(),
-            receiverAddress: testnet_addr
-          }])
+          const recipe = await wallet.transferTransaction([
+            {
+              amount: 1n,
+              type: tokenType, //nativeToken(),
+              receiverAddress: testnet_addr,
+            },
+          ]);
 
           // const recipe2 = await wallet.balanceTransaction(recipe, []);
           let zswapTx = await wallet.proveTransaction(recipe);
           // console.log("BTX", bTx.BalancedTransaction.toString());
           await wallet.submitTransaction(zswapTx);
-          console.log("OKKKKK")
+          console.log("OKKKKK");
           break;
+        case "8":
+          await contractApi.sellShares();
+          break;
+        case "9":
+          const secretKeyAgus =
+            "8c358fc3df48a8159758a8a3bf24b4133c2276fc15aeb4dd69b6af4867e3ef03";
+          const salt =
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+          const nullOwner = pureCircuits.nullify(fromHex(secretKeyAgus), fromHex(salt));
+          await contractApi.buyShare(nullOwner);
         default:
           logger.error(`Invalid choice: ${choice}`);
       }
@@ -432,10 +462,10 @@ const buildWalletFromSeed = async (
   config: Config,
   rli: Interface,
   logger: Logger,
-  seedd: string
+  seedd?: string
 ): Promise<Wallet & Resource> => {
-  // const seed = await rli.question("Enter your wallet seed: ");
-  return await buildWalletAndWaitForFunds(config, logger, seedd);
+  const seed = await rli.question("Enter your wallet seed: ");
+  return await buildWalletAndWaitForFunds(config, logger, seedd ?? seed);
 };
 
 /* ***********************************************************************
@@ -462,7 +492,7 @@ const buildWallet = async (
   config: Config,
   rli: Interface,
   logger: Logger,
-  seed: string
+  seed?: string
 ): Promise<(Wallet & Resource) | null> => {
   if (config instanceof StandaloneConfig) {
     return await buildWalletAndWaitForFunds(
@@ -477,7 +507,7 @@ const buildWallet = async (
       case "1":
         return await buildFreshWallet(config, logger);
       case "2":
-        return await buildWalletFromSeed(config, rli, logger,seed);
+        return await buildWalletFromSeed(config, rli, logger, seed);
       case "3":
         logger.info("Exiting...");
         return null;
@@ -532,9 +562,9 @@ export const run = async (
       );
     }
   }
-  const seed = "55b5cb432001eec7f8cf850322c9360019c1a721f3ea1417e9d0d1ab6ddc8109";
-  const contractInstance = "0200a5006707ee48495a5d4cbe2781db594edd4890c37fd5ac7036cdc3f583a73822";
-  const wallet = await buildWallet(config, rli, logger, seed);
+  // const seed = "55b5cb432001eec7f8cf850322c9360019c1a721f3ea1417e9d0d1ab6ddc8109";
+  // const contractInstance = "0200a5006707ee48495a5d4cbe2781db594edd4890c37fd5ac7036cdc3f583a73822";
+  const wallet = await buildWallet(config, rli, logger); //, seed);
   try {
     if (wallet !== null) {
       const walletAndMidnightProvider =
@@ -547,14 +577,14 @@ export const run = async (
           config.indexer,
           config.indexerWS
         ),
-        zkConfigProvider: new NodeZkConfigProvider<"doStuff">(
+        zkConfigProvider: new NodeZkConfigProvider<"mintShare">(
           config.zkConfigPath
         ),
         proofProvider: httpClientProofProvider(config.proofServer),
         walletProvider: walletAndMidnightProvider,
         midnightProvider: walletAndMidnightProvider,
       };
-      await mainLoop(providers, rli, logger, wallet, contractInstance);
+      await mainLoop(providers, rli, logger, wallet); //, contractInstance);
     }
   } catch (e) {
     logError(logger, e);

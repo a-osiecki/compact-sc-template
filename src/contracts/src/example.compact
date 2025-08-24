@@ -14,95 +14,147 @@
 // limitations under the License.
 pragma language_version >= 0.16;
 import CompactStandardLibrary;
-import "./oz-contracts/src/token/NonFungibleToken" prefix NFT_;
-export { CoinInfo, QualifiedCoinInfo, ZswapCoinPublicKey };
+import "./oz-contracts/src/access/Ownable" prefix Ownable_;
+import "./oz-contracts/src/token/ShieldedToken" prefix Shielded_;
+export { CoinInfo, QualifiedCoinInfo, ZswapCoinPublicKey, AssetPublicInfo, Offer };
 
 witness secret_key(): Bytes<32>;
+witness salt(): Bytes<32>;
 
-export ledger name: Opaque<"string">;
-export ledger symbol: Opaque<"string">;
-export ledger owners: Map<Uint<128>, Either<ZswapCoinPublicKey, ContractAddress>>;
-export ledger balances: Map<Either<ZswapCoinPublicKey, ContractAddress>, Uint<128>>;
-export sealed ledger price: Uint<128>;
-export ledger nonce: Counter;
-export ledger treasury: Map<Bytes<32>, QualifiedCoinInfo>;
-
-constructor(_name: Opaque<"string">, _symbol: Opaque<"string">, _price: Uint<128>) {
-  NFT_initialize(disclose(_name), disclose(_symbol));
-  price = disclose(_price);
-  name = NFT_name();
-  symbol = NFT_symbol();
+struct AssetPublicInfo {
+  kind: Opaque<"string">;
+  description: Opaque<"string">;
 }
 
-export circuit doStuff(coin: CoinInfo, domain_sep: Bytes<32>): [] {
-  const own = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
-  // transferCoinFromUser(coin);
-  NFT__mint(
-    own,
-    nonce
-  );
+struct AssetPrivateInfo {
+  uri: Opaque<"string">;
+}
 
-  addToOwners(nonce, own);
-  addToBalance(own);
-  nonce.increment(1);
+struct Tokenization {
+  asset: AssetMetadata;
+}
 
-  mintToken(disclose(domain_sep), 1 as Uint<64>, disclose(domain_sep), own);
+export ledger assetInfo: AssetPublicInfo;
+
+// FIJO
+export ledger expectedCoinType: Bytes<32>;
+
+// ACTUALIZABLE POR ADMIN
+export ledger unitPrice: Uint<32>;
+
+// acumula lo vendido en minted shares
+ledger accumulated: Map<Bytes<32>, QualifiedCoinInfo>;
+
+// se resta cuando se mintea un token
+export ledger availableShares: Uint<32>;
+
+// Tabla de ofertas
+struct Offer {
+  nullifiedOwner: Bytes<32>;
+  shares: Uint<32>;
+  pricePerShare: Uint<32>;
+}
+export ledger sells: Map<Offer, QualifiedCoinInfo>;
+export ledger claimables: Map<Offer, QualifiedCoinInfo>;
+
+ledger domain_sep: Bytes<32>;
+
+constructor(
+  _owner: ZswapCoinPublicKey,
+  _assetInfo: AssetPublicInfo,
+  _coinType: Bytes<32>,
+  _unitPrice: Uint<32>,
+  _availableShares: Uint<32>,
+  _domain_sep: Bytes<32>
+) {
+  Ownable_initialize(disclose(left<ZswapCoinPublicKey, ContractAddress>(_owner)));
+  assetInfo = disclose(_assetInfo);
+  unitPrice = disclose(_unitPrice);
+  availableShares = disclose(_availableShares);
+  expectedCoinType = disclose(_coinType);
+  domain_sep = disclose(_domain_sep);
+}
+
+export circuit mintShare(amountOfShares: Uint<32>, coin: CoinInfo): [] {
+  const disclosedCoin = disclose(coin);
+  const disclosedShares = disclose(amountOfShares);
+  assert(disclosedShares <= availableShares, "Not enough shares available");
+  assert(coin.color == expectedCoinType, "Not the right asset provided");
+  assert(coin.value == amountOfShares * unitPrice, "Wrong amount sent");
+  receive(disclosedCoin);
+
+  // const coinToInsert = accumulated.member(disclosedCoin.color) ?
+  //   mergeCoinImmediate(accumulated.lookup(disclosedCoin.color), disclosedCoin) :
+  //   disclosedCoin;
+  // accumulated.insertCoin(
+  //   disclosedCoin.color,
+  //   coinToInsert,
+  //   right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  // );
+
+  const own = left<ZswapCoinPublicKey, ContractAddress>(disclose(ownPublicKey()));
+  mintToken(disclose(domain_sep), disclosedShares as Uint<64>, disclose(domain_sep), own);
+  availableShares = availableShares - disclosedShares;
+  return;
+}
+
+export circuit sellShares(amountOfShares: Uint<32>, unitPrice: Uint<32>, tokens: CoinInfo): [] {
+  const disclosedShares = disclose(amountOfShares);
+  const disclosedCoin = disclose(tokens);
+  assert(disclosedCoin.color == expectedCoinType, "Not the right asset provided");
+  assert(disclosedShares > 0, "Must sell at least one share");
+  receive(disclosedCoin);
+
+
+  const thisCoinKey = Offer {
+    nullifiedOwner: disclose(nullify(secret_key(), salt())),
+    shares: disclosedShares,
+    pricePerShare: disclose(unitPrice),
+  };
+  // const existingSell = sells.member(thisCoinKey) ?
+  //   mergeCoinImmediate(sells.lookup(thisCoinKey), disclosedCoin) :
+  //   disclosedCoin;
+
+  // sells.insertCoin(
+  //   thisCoinKey,
+  //   existingSell,
+  //   right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  // );
+
+  return;
+}
+
+export circuit buyShare(nullifiedOwner: Bytes<32>, amountOfShares: Uint<32>, unitPrice: Uint<32>, coin: CoinInfo): [] {
+  const disclosedShares = disclose(amountOfShares);
+  const disclosedCoin = disclose(coin);
+  assert(disclosedShares > 0, "Must buy at least one share");
+  assert(disclosedCoin.color == expectedCoinType, "Not the right asset provided");
+  receive(disclosedCoin);
+
+  const thisCoinKey = Offer {
+    nullifiedOwner: disclose(nullifiedOwner),
+    shares: disclosedShares,
+    pricePerShare: disclose(unitPrice),
+  };
+  const offerExists = sells.member(thisCoinKey);
+  assert(offerExists, "No such offer");
+  const offer = sells.lookup(thisCoinKey);
+  const totalAmount = disclosedShares * disclose(unitPrice);
+  send(offer, left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey()), totalAmount);
+
+  // sells.remove(thisCoinKey);
+  // claimables.insertCoin(
+  //   thisCoinKey,
+  //   disclosedCoin,
+  //   right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  // );
   return;
 }
 
 export circuit publicKey(sk: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "commitment-domain"), sk]);
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "pk"), sk]);
 }
 
-circuit addToBalance(
-  owner: Either<ZswapCoinPublicKey, ContractAddress>,
-): [] {
-  if (balances.member(owner)) {
-    const oldBalance = balances.lookup(owner);
-    balances.insert(
-      owner,
-      oldBalance + 1 as Uint<128>
-    );
-  } else {
-    balances.insert(
-      owner,
-      1 as Uint<128>
-    );
-  }
-  return;
-}
-
-circuit addToOwners(
-  tokenId: Uint<128>,
-  owner: Either<ZswapCoinPublicKey, ContractAddress>,
-): [] {
-  if (owners.member(tokenId)) {
-    assert(false, "Token already minted");
-  }
-  owners.insert(
-    tokenId,
-    owner
-  );
-  return;
-}
-
-circuit transferCoinFromUser(coin: CoinInfo): [] {
-  const disclosedCoin = disclose(coin);
-  assert(disclosedCoin.value >= price, "Insufficient coin value");
-  receive(disclosedCoin);
-  const coinExists = treasury.member(disclosedCoin.color);
-  const coinToInsert = coinExists ?
-    mergeCoinImmediate(treasury.lookup(disclosedCoin.color), disclosedCoin) :
-    disclosedCoin;
-
-
-  treasury.insertCoin(
-    disclosedCoin.color,
-    CoinInfo {
-      color: coinToInsert.color,
-      value: coinToInsert.value,
-      nonce: coinToInsert.nonce,
-    },
-    right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
-  );
+export circuit nullify(sk: Bytes<32>, salt: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "pk:"), sk, salt]);
 }

@@ -25,9 +25,10 @@ import type {
   ContractPrivateState,
   Contract,
   Witnesses,
+  AssetPublicInfo,
+  QualifiedCoinInfo,
+  Offer,
 } from "../contracts/src/index";
-import { QualifiedCoinInfo } from "@midnight-ntwrk/ledger";
-// import { Nonce, QualifiedCoinInfo, TokenType } from "@midnight-ntwrk/compact-runtime";
 
 export const contractPrivateStateKey = "contractPrivateState";
 export type PrivateStateId = typeof contractPrivateStateKey;
@@ -104,28 +105,41 @@ export type DerivedProtocolTotal = {
 };
 
 export type ContractDerivedState = {
-  readonly name: string;
-  readonly symbol: string;
-  // Token Ids -> owners
-  readonly owners: Map<bigint, string>;
-  // Owners -> amount of different nfts
-  readonly balances: Map<string, bigint>;
-  readonly price: bigint;
-  readonly treasury: DerivedProtocolTotal[];
+  readonly assetInfo: AssetPublicInfo;
+  readonly expectedCoinType: string;
+  readonly unitPrice: bigint;
+  readonly availableShares: bigint;
+  readonly sells: Map<Offer, QualifiedCoinInfo>;
+  readonly claimables: Map<Offer, QualifiedCoinInfo>;
 };
 
-type CustomQCI = {
-  nonce: Uint8Array;
-  color: Uint8Array;
-  value: bigint;
-  mt_index: bigint;
-};
+
 export function parseTreasury(treasury: {
   isEmpty(): boolean;
   size(): bigint;
   member(key_0: Uint8Array): boolean;
-  lookup(key_0: Uint8Array): CustomQCI;
-  [Symbol.iterator](): Iterator<[Uint8Array, CustomQCI]>;
+  lookup(key_0: Uint8Array): QualifiedCoinInfo;
+  [Symbol.iterator](): Iterator<[Uint8Array, QualifiedCoinInfo]>;
+}): DerivedProtocolTotal[] {
+  return Array.from(treasury).map(([key, bal]) => ({
+    id: uint8arraytostring(key),
+    treasury: Object.fromEntries(
+      Object.entries(bal).map(([k, v]) => {
+        if (k === "nonce" || k === "color") {
+          return [k, uint8arraytostring(v as Uint8Array)];
+        }
+        return [k, v];
+      })
+    ),
+  }));
+}
+
+export function parseMapCoso(treasury: {
+  isEmpty(): boolean;
+  size(): bigint;
+  member(key_0: Uint8Array): boolean;
+  lookup(key_0: Uint8Array): QualifiedCoinInfo;
+  [Symbol.iterator](): Iterator<[Uint8Array, QualifiedCoinInfo]>;
 }): DerivedProtocolTotal[] {
   return Array.from(treasury).map(([key, bal]) => ({
     id: uint8arraytostring(key),

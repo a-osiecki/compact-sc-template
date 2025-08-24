@@ -19,8 +19,14 @@
  * @packageDocumentation
  */
 
-import contractModule from "../contracts/src/managed/contract/index.cjs";
-import { CoinInfo, QualifiedCoinInfo } from "../contracts/src/managed/contract/index.d.cjs";
+import contractModule, {
+  AssetPublicInfo,
+  Offer,
+} from "../contracts/src/managed/contract/index.cjs";
+import {
+  CoinInfo,
+  QualifiedCoinInfo,
+} from "../contracts/src/managed/contract/index.d.cjs";
 const { Contract, ledger, pureCircuits } = contractModule;
 
 import {
@@ -36,12 +42,14 @@ import {
   type DeployedContractContract,
   contractPrivateStateKey,
   parseTreasury,
+  uint8arraytostring,
 } from "./common-types.js";
 // import { Contract, ledger, pureCircuits, STATE } from '../../contract/src/managed/bboard/contract/index.cjs';
 import {
   type ContractPrivateState,
   createContractPrivateState,
   witnesses,
+  ZswapCoinPublicKey,
 } from "../contracts/src/index.js";
 import {
   deployContract,
@@ -74,7 +82,9 @@ export interface DeployedContractAPI {
   readonly deployedContractAddress: ContractAddress;
   readonly state$: Observable<ContractDerivedState>;
 
-  doStuff: () => Promise<void>;
+  mintShare: () => Promise<void>;
+  sellShares: () => Promise<void>;
+  buyShare: (owner: Uint8Array) => Promise<void>;
 }
 
 /**
@@ -145,29 +155,37 @@ export class ContractAPI implements DeployedContractAPI {
       ],
       // ...and combine them to produce the required derived state.
       (ledgerState, privateState) => {
-        let owners: Map<bigint, string> = new Map<bigint, string>();
-        let balances: Map<string, bigint> = new Map<string, bigint>();
-        for (const [k, v] of ledgerState.owners) {
-          if (v.is_left) {
-            owners.set(k, toHex(v.left.bytes));
-          } else {
-            owners.set(k, toHex(v.right.bytes));
-          }
+        let sells: Map<Offer, QualifiedCoinInfo> = new Map();
+        let claimables: Map<Offer, QualifiedCoinInfo> = new Map();
+        for (const [k, v] of ledgerState.sells) {
+          const parsedQCI = Object.fromEntries(
+            Object.entries(v).map(([k1, v1]) => {
+              if (k1 === "nonce" || k1 === "color") {
+                return [k1, uint8arraytostring(v1 as Uint8Array)];
+              }
+              return [k1, v1];
+            })
+          );
+          sells.set(k, parsedQCI);
         }
-        for (const [k, v] of ledgerState.balances) {
-          if (k.is_left) {
-            balances.set(toHex(k.left.bytes), v);
-          } else {
-            balances.set(toHex(k.right.bytes), v);
-          }
+        for (const [k, v] of ledgerState.claimables) {
+          const parsedQCI = Object.fromEntries(
+            Object.entries(v).map(([k1, v1]) => {
+              if (k1 === "nonce" || k1 === "color") {
+                return [k1, uint8arraytostring(v1 as Uint8Array)];
+              }
+              return [k1, v1];
+            })
+          );
+          claimables.set(k, parsedQCI);
         }
         return {
-          name: ledgerState.name,
-          symbol: ledgerState.symbol,
-          owners: owners,
-          balances: balances,
-          price: ledgerState.price,
-          treasury: parseTreasury(ledgerState.treasury),
+          assetInfo: ledgerState.assetInfo,
+          expectedCoinType: uint8arraytostring(ledgerState.expectedCoinType),
+          unitPrice: ledgerState.unitPrice,
+          availableShares: ledgerState.availableShares,
+          sells: sells,
+          claimables: claimables,
         };
       }
     );
@@ -189,13 +207,16 @@ export class ContractAPI implements DeployedContractAPI {
    * @remarks
    * This method can fail during local circuit execution if the bulletin board is currently occupied.
    */
-  async doStuff(): Promise<void> {
+  async mintShare(): Promise<void> {
     this.logger?.info(`doing stuff...`);
 
-    const coin = this.coin(1000);
-    const dom_sep = pad("holaholaholaholaholaholaholahola", 32); //"hola" // utils.randomBytes(32);
-    console.dir({nonce: toHex(coin.nonce), color: toHex(coin.color), value: coin.value});
-    const txData = await this.deployedContract.callTx.doStuff(coin, dom_sep);
+    const coin = this.coin(10000);
+    console.dir({
+      nonce: toHex(coin.nonce),
+      color: toHex(coin.color),
+      value: coin.value,
+    });
+    const txData = await this.deployedContract.callTx.mintShare(10n, coin);
 
     this.logger?.trace({
       transactionAdded: {
@@ -205,6 +226,47 @@ export class ContractAPI implements DeployedContractAPI {
       },
     });
   }
+
+  async sellShares(): Promise<void> {
+    this.logger?.info(`selling shares...`);
+
+    const coin = this.coin(20000);
+    console.dir({
+      nonce: toHex(coin.nonce),
+      color: toHex(coin.color),
+      value: coin.value,
+    });
+    const txData = await this.deployedContract.callTx.sellShares(5n, 4000n, coin);
+
+    this.logger?.trace({
+      transactionAdded: {
+        circuit: "sellShares",
+        txHash: txData.public.txHash,
+        blockHeight: txData.public.blockHeight,
+      },
+    });
+  }
+
+  async buyShare(owner: Uint8Array): Promise<void> {
+    this.logger?.info(`buying shares...`);
+
+    const coin = this.coin(10000);
+    console.dir({
+      nonce: toHex(coin.nonce),
+      color: toHex(coin.color),
+      value: coin.value,
+    });
+    const txData = await this.deployedContract.callTx.buyShare(owner, 10n, 1n, coin);
+
+    this.logger?.trace({
+      transactionAdded: {
+        circuit: "buyShares",
+        txHash: txData.public.txHash,
+        blockHeight: txData.public.blockHeight,
+      },
+    });
+  }
+
 
   /**
    * Deploys a new bulletin board contract to the network.
@@ -220,12 +282,30 @@ export class ContractAPI implements DeployedContractAPI {
   ): Promise<ContractAPI> {
     logger?.info("deployContract");
     console.log("fisuraaaa pk: ", toHex(fisuraKey));
+    const owner: ZswapCoinPublicKey = {
+      bytes: fisuraKey,
+    };
+    const assetInfo: AssetPublicInfo = {
+      kind: "parcelas",
+      description: "tierras de fisura",
+    };
+    const coinType = encodeTokenType(nativeToken());
+    const unitPrice = 1000n;
+    const availableShares = 1000n;
+    const domain_sep = pad("holaholaholaholaholaholaholahola", 32); //"hola" // utils.randomBytes(32);
 
     const deployedContractContract = await deployContract(providers, {
       privateStateId: contractPrivateStateKey,
       contract: contractContractInstance,
       initialPrivateState: await ContractAPI.getPrivateState(providers),
-      args: ["fisura", "token", 1000n],
+      args: [
+        owner,
+        assetInfo,
+        coinType,
+        unitPrice,
+        availableShares,
+        domain_sep,
+      ],
     });
 
     logger?.trace({
@@ -283,7 +363,8 @@ export class ContractAPI implements DeployedContractAPI {
       contractPrivateStateKey
     );
     return (
-      existingPrivateState ?? createContractPrivateState(utils.randomBytes(32))
+      existingPrivateState ??
+      createContractPrivateState(fromHex(secretKeyAgus), fromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
     );
   }
 }
